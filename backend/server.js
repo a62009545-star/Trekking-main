@@ -18,7 +18,9 @@ import cookieParser from 'cookie-parser';
 // __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const frontendDistPath = path.resolve(__dirname, '..', 'frontend', 'dist');
+const frontendRootPath = path.resolve(__dirname, '..', 'frontend');
+const frontendDistPath = path.join(frontendRootPath, 'dist');
+const frontendPublicPath = fs.existsSync(frontendDistPath) ? frontendDistPath : frontendRootPath;
 
 const app = express();
 
@@ -33,6 +35,8 @@ const setStaticHeaders = (res, filePath) => {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
   } else if (extension === '.svg') {
     res.setHeader('Content-Type', 'image/svg+xml');
+  } else if (extension === '.html') {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
   }
 };
 
@@ -62,30 +66,20 @@ app.get('/health', (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  if (fs.existsSync(frontendDistPath)) {
-    return res.sendFile(path.join(frontendDistPath, 'index.html'));
-  }
-
-  return res.json({ message: 'Trek Booking API is running' });
+  return res.sendFile(path.join(frontendPublicPath, 'index.html'));
 });
 
-if (fs.existsSync(frontendDistPath)) {
-  app.use(express.static(frontendDistPath, {
-    index: false,
-    setHeaders: (res, filePath) => setStaticHeaders(res, filePath),
-  }));
-}
+app.use(express.static(frontendPublicPath, {
+  index: false,
+  setHeaders: (res, filePath) => setStaticHeaders(res, filePath),
+}));
 
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
     return next();
   }
 
-  if (fs.existsSync(frontendDistPath)) {
-    return res.sendFile(path.join(frontendDistPath, 'index.html'));
-  }
-
-  return next();
+  return res.sendFile(path.join(frontendPublicPath, 'index.html'));
 });
 
 // 404 handler
