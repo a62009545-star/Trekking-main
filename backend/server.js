@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -17,8 +18,23 @@ import cookieParser from 'cookie-parser';
 // __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const frontendDistPath = path.resolve(__dirname, '..', 'frontend', 'dist');
 
 const app = express();
+
+const setStaticHeaders = (res, filePath) => {
+  const extension = path.extname(filePath).toLowerCase();
+
+  if (extension === '.js' || extension === '.mjs' || extension === '.jsx') {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  } else if (extension === '.css') {
+    res.setHeader('Content-Type', 'text/css; charset=utf-8');
+  } else if (extension === '.json') {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  } else if (extension === '.svg') {
+    res.setHeader('Content-Type', 'image/svg+xml');
+  }
+};
 
 // Middleware
 app.use(cors({
@@ -41,8 +57,35 @@ app.use('/api/gallery', galleryRoutes);
 app.use('/api/faq', faqRoutes);
 
 // Health check
-app.get('/', (req, res) => {
+app.get('/health', (req, res) => {
   res.json({ message: 'Trek Booking API is running' });
+});
+
+app.get('/', (req, res) => {
+  if (fs.existsSync(frontendDistPath)) {
+    return res.sendFile(path.join(frontendDistPath, 'index.html'));
+  }
+
+  return res.json({ message: 'Trek Booking API is running' });
+});
+
+if (fs.existsSync(frontendDistPath)) {
+  app.use(express.static(frontendDistPath, {
+    index: false,
+    setHeaders: (res, filePath) => setStaticHeaders(res, filePath),
+  }));
+}
+
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+    return next();
+  }
+
+  if (fs.existsSync(frontendDistPath)) {
+    return res.sendFile(path.join(frontendDistPath, 'index.html'));
+  }
+
+  return next();
 });
 
 // 404 handler
